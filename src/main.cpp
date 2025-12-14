@@ -44,6 +44,15 @@ const unsigned long FLASH_INTERVAL = 200; // milliseconds
 unsigned long lastButtonPress = 0;
 const unsigned long DEBOUNCE_TIME = 200;
 
+// Sound settings
+const int CLICK_FREQUENCY = 800;  // Hz - frequency for click sound
+const int CLICK_DURATION = 50;     // milliseconds - duration of click sound
+
+void playClickSound() {
+  // Play a short click sound
+  M5.Speaker.tone(CLICK_FREQUENCY, CLICK_DURATION);
+}
+
 void displaySetup() {
   M5.Lcd.clear();
   
@@ -234,6 +243,7 @@ void handleSetupButtons() {
   
   if (M5.BtnA.wasPressed()) {
     // Cycle through hours, minutes, seconds
+    playClickSound();
     setupSelection = (setupSelection + 1) % 3;
     displaySetup();
     delay(DEBOUNCE_TIME);
@@ -241,6 +251,7 @@ void handleSetupButtons() {
   
   if (M5.BtnB.wasPressed()) {
     // Increment current selection
+    playClickSound();
     if (setupSelection == 0) {
       hours = (hours + 1) % 24;
     } else if (setupSelection == 1) {
@@ -267,6 +278,7 @@ void handleSetupButtons() {
   
   if (M5.BtnC.wasPressed()) {
     // Start countdown
+    playClickSound();
     totalSeconds = hours * 3600 + minutes * 60 + seconds;
     if (totalSeconds > 0) {
       // Store initial values for restoration after disarm
@@ -295,6 +307,7 @@ void handleCountdownButtons() {
   
   if (anyButtonPressed && !disarmButtonPressed) {
     // Just started pressing any button
+    playClickSound();
     disarmButtonPressed = true;
     disarmButtonId = pressedButtonId;
     disarmPressStart = millis();
@@ -356,6 +369,7 @@ void handleDisarmedButtons() {
   
   if (M5.BtnA.wasPressed() || M5.BtnB.wasPressed() || M5.BtnC.wasPressed()) {
     // Return to setup with retained initial time values
+    playClickSound();
     currentState = SETUP;
     hours = initialHours;
     minutes = initialMinutes;
@@ -371,6 +385,7 @@ void handleBoomButtons() {
   
   if (M5.BtnA.wasPressed() || M5.BtnB.wasPressed() || M5.BtnC.wasPressed()) {
     // Return to menu with retained initial time values
+    playClickSound();
     currentState = SETUP;
     hours = initialHours;
     minutes = initialMinutes;

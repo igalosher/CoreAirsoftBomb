@@ -45,12 +45,29 @@ unsigned long lastButtonPress = 0;
 const unsigned long DEBOUNCE_TIME = 200;
 
 // Sound settings
-const int CLICK_FREQUENCY = 800;  // Hz - frequency for click sound
-const int CLICK_DURATION = 50;     // milliseconds - duration of click sound
+const int CLICK_FREQUENCY = 2500;  // Hz - higher frequency for sharp click sound
+const int CLICK_DURATION = 10;      // milliseconds - very short for click sound
+const int COUNTDOWN_BEEP_FREQUENCY = 2000;  // Hz - frequency for countdown beeps
+const int COUNTDOWN_BEEP_DURATION = 100;    // milliseconds - duration of countdown beeps
+const int LONG_BEEP_FREQUENCY = 1500;       // Hz - frequency for long beep
+const int LONG_BEEP_DURATION = 10000;       // milliseconds - 10 seconds
+
+// Countdown beep tracking
+unsigned long lastMinuteBeep = 0;
+unsigned long last10SecondBeep = 0;
+unsigned long lastSecondBeep = 0;
+unsigned long lastFastBeep = 0;
+bool longBeepPlaying = false;
+unsigned long longBeepStartTime = 0;
 
 void playClickSound() {
-  // Play a short click sound
+  // Play a short, sharp click sound using tone
   M5.Speaker.tone(CLICK_FREQUENCY, CLICK_DURATION);
+}
+
+void playCountdownBeep() {
+  // Play a countdown beep
+  M5.Speaker.tone(COUNTDOWN_BEEP_FREQUENCY, COUNTDOWN_BEEP_DURATION);
 }
 
 void displaySetup() {
@@ -288,6 +305,12 @@ void handleSetupButtons() {
       remainingSeconds = totalSeconds;
       currentState = COUNTDOWN;
       lastUpdate = millis();
+      // Reset beep tracking
+      lastMinuteBeep = 0;
+      last10SecondBeep = 0;
+      lastSecondBeep = 0;
+      lastFastBeep = 0;
+      longBeepPlaying = false;
       displayCountdown();
     }
     delay(DEBOUNCE_TIME);
@@ -350,6 +373,35 @@ void handleCountdownButtons() {
   // Update countdown if not disarming
   if (currentState == COUNTDOWN) {
     unsigned long currentTime = millis();
+    
+    // Handle countdown beeps based on time remaining (check every loop iteration)
+    if (remainingSeconds > 60) {
+      // More than 1 minute: beep every minute (at 120, 180, 240, etc.)
+      if (remainingSeconds % 60 == 0 && remainingSeconds > 60 && currentTime - lastMinuteBeep >= 1000) {
+        playCountdownBeep();
+        lastMinuteBeep = currentTime;
+      }
+    } else if (remainingSeconds >= 10) {
+      // Less than 1 minute but >= 10 seconds: beep every 10 seconds (at 50, 40, 30, 20, 10)
+      if (remainingSeconds % 10 == 0 && currentTime - last10SecondBeep >= 1000) {
+        playCountdownBeep();
+        last10SecondBeep = currentTime;
+      }
+    } else if (remainingSeconds >= 3) {
+      // Less than 10 seconds but >= 3 seconds: beep every second
+      if (currentTime - lastSecondBeep >= 1000) {
+        playCountdownBeep();
+        lastSecondBeep = currentTime;
+      }
+    } else if (remainingSeconds > 0) {
+      // Less than 3 seconds: beep 3 times per second (every ~333ms)
+      if (currentTime - lastFastBeep >= 333) {
+        playCountdownBeep();
+        lastFastBeep = currentTime;
+      }
+    }
+    
+    // Update timer every second
     if (currentTime - lastUpdate >= 1000) {
       if (remainingSeconds > 0) {
         remainingSeconds--;
@@ -357,6 +409,10 @@ void handleCountdownButtons() {
         displayCountdown();
       } else {
         // Timer reached zero!
+        // Start long beep
+        longBeepPlaying = true;
+        longBeepStartTime = millis();
+        M5.Speaker.tone(LONG_BEEP_FREQUENCY, LONG_BEEP_DURATION);
         currentState = BOOM;
         lastFlashTime = millis();
       }
@@ -383,8 +439,23 @@ void handleDisarmedButtons() {
 void handleBoomButtons() {
   M5.update();
   
+  // Check if long beep is still playing
+  if (longBeepPlaying) {
+    unsigned long currentTime = millis();
+    if (currentTime - longBeepStartTime >= LONG_BEEP_DURATION) {
+      // Long beep finished
+      longBeepPlaying = false;
+      M5.Speaker.mute();
+    }
+  }
+  
   if (M5.BtnA.wasPressed() || M5.BtnB.wasPressed() || M5.BtnC.wasPressed()) {
     // Return to menu with retained initial time values
+    // Stop long beep if playing
+    if (longBeepPlaying) {
+      M5.Speaker.mute();
+      longBeepPlaying = false;
+    }
     playClickSound();
     currentState = SETUP;
     hours = initialHours;
